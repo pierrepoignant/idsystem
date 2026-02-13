@@ -17,15 +17,17 @@ echo   1 ^) Push stock
 echo   2 ^) Push articles
 echo   3 ^) Push commandes
 echo   4 ^) Push clients
+echo   5 ^) Push 1 order
 echo   Q ^) Quit
 echo.
 set "CHOICE="
-set /p CHOICE=Choice (1-4, Q to quit) : 
+set /p CHOICE=Choice (1-5, Q to quit) : 
 
 if /I "%CHOICE%"=="1" goto push_stock
 if /I "%CHOICE%"=="2" goto push_articles
 if /I "%CHOICE%"=="3" goto push_commandes
 if /I "%CHOICE%"=="4" goto push_clients
+if /I "%CHOICE%"=="5" goto push_one_order
 if /I "%CHOICE%"=="Q" goto end
 
 echo.
@@ -109,6 +111,52 @@ F:\Lgi\GestCom\FloW.exe ^
  -SKLOG ^
  -FCTN FREEEXPORTORDER ^
  -FILTRE "ORDENTRYDATE>='%DATE_SINCE%'" ^
+ -PATH "F:\LBCScripts\exports2\commandes"
+
+rem 2/ FTP upload
+F:\Lgi\GestCom\FloW.exe ^
+ -DBN "ESSENCIAGUA" ^
+ -USR "LBCScript" ^
+ -PWDC "hfnS02e2F6EvV/A" ^
+ -SKLOG ^
+ -FCTN FTPDIRUPLOAD ^
+ -LOCALDIR "F:\LBCScripts\exports2\commandes\*.csv" ^
+ -NOFTP 3 ^
+ -FTPPATH "/upload/ess_commandes" ^
+ -ARCHIVEDIR
+
+rem 3/ Delete local CSV files
+echo Deleting local CSV files in commandes directory...
+del /Q "F:\LBCScripts\exports2\commandes\*.csv"
+
+echo.
+pause
+goto menu
+
+rem ============================
+rem  PUSH 1 ORDER (by order number)
+rem ============================
+:push_one_order
+echo.
+set "ORDER_NUM="
+set /p ORDER_NUM=Order number to export : 
+
+if "!ORDER_NUM!"=="" (
+  echo No order number entered.
+  pause
+  goto menu
+)
+
+echo Running COMMANDES export for order !ORDER_NUM! ...
+
+rem 1/ Export single order
+F:\Lgi\GestCom\FloW.exe ^
+ -DBN "ESSENCIAGUA" ^
+ -USR "LBCScript" ^
+ -PWDC "hfnS02e2F6EvV/A" ^
+ -SKLOG ^
+ -FCTN FREEEXPORTORDER ^
+ -FILTRE "ORDNOORDER=!ORDER_NUM!" ^
  -PATH "F:\LBCScripts\exports2\commandes"
 
 rem 2/ FTP upload
