@@ -1,0 +1,2 @@
+REM Import Commandes
+"F:\LGI\Gestcom\Flow.exe" -DBN "ESSENCIAGUA" -USR "LBCScript"  -PWDC "hfnS02e2F6EvV/A" -SKLOG -FCTN IMPORTORDER -PATH "F:\LBCScripts\imports\shopify" -NOFTP 2 -FTPPATH "/var/www/essenciagua/idsystem/ImportCommandes" -PROFIL Shopify 
