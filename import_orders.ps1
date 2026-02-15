@@ -20,7 +20,7 @@ $failed = 0
 
 try {
     Write-Host "Fetching orders from API: $ApiBase/get-new-orders/$ChannelId/$DateSince"
-    $json = (curl.exe -s -f "$ApiBase/get-new-orders/$ChannelId/$DateSince")
+    $json = (curl.exe -s -f "$ApiBase/get-new-orders/$ChannelId/$DateSince") -join ''
     if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
     $response = $json | ConvertFrom-Json
 } catch {
