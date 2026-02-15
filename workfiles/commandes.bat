@@ -6,6 +6,6 @@ F:\Lgi\GestCom\FloW.exe -DBN "ESSENCIAGUA" -USR "LBCScript"  -PWDC "hfnS02e2F6Ev
 
 F:\Lgi\GestCom\FloW.exe -DBN "ESSENCIAGUA" -USR "LBCScript"  -PWDC "hfnS02e2F6EvV/A" -SKLOG -FCTN EXPORTCUSTOMER -PATH "F:\LBCScripts\exports2\clients" -NOFTP 3 -FTPPATH "/upload/ess_clients"  -FILTRE "CUSDATEL>='Today'-7"
 
-F:\Lgi\GestCom\FloW.exe -DBN "ESSENCIAGUA" -USR "LBCScript"  -PWDC "hfnS02e2F6EvV/A" -SKLOG -FCTN FREEEXPORTORDER -FILTRE "ORDENTRYDATE>='Today'-7" -PATH "F:\LBCScripts\exports2\commandes"
+F:\Lgi\GestCom\FloW.exe -DBN "ESSENCIAGUA" -USR "LBCScript"  -PWDC "hfnS02e2F6EvV/A" -SKLOG -FCTN FREEEXPORTORDER -FILTRE "ORDENTRYDATE>='Today'-7" -PATH "F:\LBCScripts\exports2\commandes"
 
 F:\Lgi\GestCom\FloW.exe -DBN "ESSENCIAGUA" -USR "LBCScript"  -PWDC "hfnS02e2F6EvV/A" -SKLOG -FCTN  FTPDIRUPLOAD -LOCALDIR "F:\LBCScripts\exports2\commandes\*.csv" -NOFTP 3 -FTPPATH "/upload/ess_commandes" -ARCHIVEDIR
