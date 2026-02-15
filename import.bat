@@ -24,6 +24,11 @@ set "IMPORT_PATH=F:\LBCScripts\imports2\shopify"
 set "PROFIL=Shopify"
 set "API_BASE=https://lesbonneschoses.app/oms2"
 
+:: --- Channels (add new channels here) ---
+set "CHANNELS=1 10"
+set "CHANNEL_1_NAME=Shopify B2C"
+set "CHANNEL_10_NAME=Prestashop ES"
+
 :: --- Defaults ---
 set "CHANNEL_ID="
 set "CHANNEL_NAME="
@@ -32,8 +37,11 @@ set "DATE_SINCE="
 :: --- Check command-line argument for channel ---
 if not "%~1"=="" (
     set "CHANNEL_ID=%~1"
-    if "%~1"=="1" set "CHANNEL_NAME=Shopify B2C"
-    if "%~1"=="10" set "CHANNEL_NAME=Prestashop ES"
+    set "CHANNEL_NAME=!CHANNEL_%~1_NAME!"
+    if "!CHANNEL_NAME!"=="" (
+        echo ERROR: Unknown channel ID: %~1
+        exit /b 1
+    )
 )
 
 :: ============================================================================
@@ -85,35 +93,24 @@ echo ========================================================================
 echo Select Channel
 echo ========================================================================
 echo.
-echo  1. Prestashop ES
-echo 10. Shopify B2B
-echo 11. Shopify B2C
+for %%c in (%CHANNELS%) do (
+    echo %%c. !CHANNEL_%%c_NAME!
+)
 echo.
 echo  0. Back to menu
 echo.
 echo ========================================================================
 set /p channel="Enter channel ID: "
 
-if "%channel%"=="1" (
-    set "CHANNEL_ID=1"
-    set "CHANNEL_NAME=Prestashop ES"
-    goto MAIN_MENU
-)
-if "%channel%"=="10" (
-    set "CHANNEL_ID=10"
-    set "CHANNEL_NAME=Shopify B2B"
-    goto MAIN_MENU
-)
-if "%channel%"=="11" (
-    set "CHANNEL_ID=11"
-    set "CHANNEL_NAME=Shopify B2C"
-    goto MAIN_MENU
-)
 if "%channel%"=="0" goto MAIN_MENU
-
-echo Invalid channel ID.
-pause
-goto SELECT_CHANNEL
+set "CHANNEL_NAME=!CHANNEL_%channel%_NAME!"
+if "!CHANNEL_NAME!"=="" (
+    echo Invalid channel ID.
+    pause
+    goto SELECT_CHANNEL
+)
+set "CHANNEL_ID=%channel%"
+goto MAIN_MENU
 
 
 :: ============================================================================
