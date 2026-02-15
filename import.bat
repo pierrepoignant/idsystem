@@ -174,6 +174,7 @@ if "%DATE_SINCE%"=="" (
 
 :: Main import loop via PowerShell
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;^
  $ErrorActionPreference = 'Stop';^
  $apiBase = '%API_BASE%';^
  $channelId = '%CHANNEL_ID%';^
