@@ -12,7 +12,6 @@ param(
     [string]$Profil
 )
 
-[Net.ServicePointManager]::SecurityProtocol = 3072
 $ErrorActionPreference = 'Stop'
 
 $imported = 0
@@ -21,7 +20,9 @@ $failed = 0
 
 try {
     Write-Host "Fetching orders from API: $ApiBase/get-new-orders/$ChannelId/$DateSince"
-    $response = Invoke-RestMethod -Uri "$ApiBase/get-new-orders/$ChannelId/$DateSince"
+    $json = (curl.exe -s -f "$ApiBase/get-new-orders/$ChannelId/$DateSince")
+    if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
+    $response = $json | ConvertFrom-Json
 } catch {
     Write-Host "ERROR: Failed to fetch orders from API: $_"
     exit 1
@@ -51,7 +52,8 @@ foreach ($order in $orders) {
 
     try {
         Write-Host "  Triggering export..."
-        Invoke-RestMethod -Uri "$ApiBase/export-to-idsystem/$ChannelId/order/$orderId" | Out-Null
+        curl.exe -s -f "$ApiBase/export-to-idsystem/$ChannelId/order/$orderId" | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
     } catch {
         Write-Host "  FAILED - export error: $_"
         $failed++
