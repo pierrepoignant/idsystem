@@ -30,8 +30,8 @@ set "CHANNEL_1_NAME=Shopify B2C"
 set "CHANNEL_10_NAME=Prestashop ES"
 
 :: --- Defaults ---
-set "CHANNEL_ID="
-set "CHANNEL_NAME="
+set "CHANNEL_ID=1"
+set "CHANNEL_NAME=!CHANNEL_1_NAME!"
 set "DATE_SINCE="
 
 :: --- Check command-line argument for channel ---
@@ -192,7 +192,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  ^
  try {^
      Write-Host \"Fetching orders from API: $apiBase/get-new-orders/$channelId/$dateSince\";^
-     $response = Invoke-RestMethod -Uri \"$apiBase/get-new-orders/$channelId/$dateSince\" -UseBasicParsing;^
+     $response = Invoke-RestMethod -Uri \"$apiBase/get-new-orders/$channelId/$dateSince\";^
  } catch {^
      Write-Host \"ERROR: Failed to fetch orders from API: $_\";^
      exit 1;^
@@ -222,7 +222,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
      ^
      try {^
          Write-Host \"  Triggering export...\";^
-         Invoke-RestMethod -Uri \"$apiBase/export-to-idsystem/$channelId/order/$orderId\" -UseBasicParsing ^| Out-Null;^
+         Invoke-RestMethod -Uri \"$apiBase/export-to-idsystem/$channelId/order/$orderId\" ^| Out-Null;^
      } catch {^
          Write-Host \"  FAILED - export error: $_\";^
          $failed++;^
