@@ -61,7 +61,7 @@ foreach ($order in $orders) {
     }
 
     Write-Host "  Running FloW import..."
-    & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -NOFTP 2 -FTPPATH $FtpPath -PROFIL $Profil -PATH $ImportPath
+    & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -NOFTP 3 -FTPPATH $FtpPath -PROFIL $Profil -PATH $ImportPath
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  FAILED - FloW import error (exit code: $LASTEXITCODE)"
         $failed++
