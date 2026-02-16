@@ -19,9 +19,9 @@ set "DB_NAME=idsystem.db"
 set "USR=LBCScript"
 set "PWDC=hfnS02e2F6EvV/A"
 set "DBN=ESSENCIAGUA"
-set "FTP_PATH=/upload/ess_commandes_export"
-set "IMPORT_PATH=F:\LBCScripts\imports2\shopify"
-set "PROFIL=Shopify"
+set "FTP_PATH=/ess_commandes_export"
+set "IMPORT_PATH=F:\LBCScripts\imports2\commandes"
+set "PROFIL=Prestashop"
 set "API_BASE=https://lesbonneschoses.app/oms2"
 
 :: --- Channels (add new channels here) ---
