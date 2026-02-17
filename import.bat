@@ -27,7 +27,9 @@ set "PS_SCRIPT=%~dp0import_orders.ps1"
 set "FTP_SERVER=91.134.130.254"
 set "FTP_USER=lbcapp"
 set "FTP_PASS=123LesBonnesChoses$"
-set "FTP_DIR=/ess_commandes_export"
+set "FTP_DIR_ORDERS=/ess_commandes_export"
+set "FTP_DIR_CUSTOMERS=/ess_clients_export"
+set "IMPORT_PATH_CUSTOMERS=F:\LBCScripts\imports2\clients"
 
 :: --- Channels (add new channels here) ---
 set "CHANNELS=1 10"
@@ -209,19 +211,21 @@ goto MAIN_MENU
 :STEP_FTP
 echo.
 echo ========================================================================
-echo Step 2: Download from FTP to %IMPORT_PATH%
+echo Step 2: Download from FTP
 echo ========================================================================
+
 echo.
+echo --- Orders: %FTP_DIR_ORDERS% to %IMPORT_PATH% ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_ORDERS%" -ImportPath "%IMPORT_PATH%"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR%" -ImportPath "%IMPORT_PATH%"
+echo.
+echo --- Customers: %FTP_DIR_CUSTOMERS% to %IMPORT_PATH_CUSTOMERS% ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_CUSTOMERS%" -ImportPath "%IMPORT_PATH_CUSTOMERS%"
 
-if errorlevel 1 (
-    echo.
-    echo Step 2 FAILED.
-) else (
-    echo.
-    echo Step 2 completed.
-)
+echo.
+echo Step 2 completed.
 pause
 goto MAIN_MENU
 
@@ -314,11 +318,25 @@ if errorlevel 1 (
 
 echo.
 echo --- Step 2: Download from FTP ---
+
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR%" -ImportPath "%IMPORT_PATH%"
+echo --- Orders: %FTP_DIR_ORDERS% ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_ORDERS%" -ImportPath "%IMPORT_PATH%"
 if errorlevel 1 (
     echo.
-    echo ABORTED: Step 2 failed.
+    echo ABORTED: Step 2 failed (orders).
+    pause
+    goto MAIN_MENU
+)
+
+echo.
+echo --- Customers: %FTP_DIR_CUSTOMERS% ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_CUSTOMERS%" -ImportPath "%IMPORT_PATH_CUSTOMERS%"
+if errorlevel 1 (
+    echo.
+    echo ABORTED: Step 2 failed (customers).
     pause
     goto MAIN_MENU
 )
