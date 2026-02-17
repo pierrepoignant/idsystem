@@ -124,9 +124,9 @@ if ($Step -eq 'FtpDownload') {
         Write-Host "  Downloading $file..."
         # URL-encode special characters in filename (#, $, etc.)
         $encodedFile = [Uri]::EscapeDataString($file)
-        $output = curl.exe -u "${FtpUser}:${FtpPass}" "$ftpBase/$encodedFile" -o "$ImportPath\$file" 2>&1
+        curl.exe -sS -f -u "${FtpUser}:${FtpPass}" "$ftpBase/$encodedFile" -o "$ImportPath\$file" 2>&1 | ForEach-Object { "$_" }
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "    FAILED to download: $output"
+            Write-Host "    FAILED to download."
             $errors++
             continue
         }
