@@ -2,6 +2,13 @@
 setlocal ENABLEDELAYEDEXPANSION
 
 rem ============================
+rem  FTP Configuration
+rem ============================
+set "FTP_SERVER=91.134.130.254"
+set "FTP_USER=lbcapp"
+set "FTP_PASS=123LesBonnesChoses$"
+
+rem ============================
 rem  Compute default date = today - 7 days in MM/DD/YYYY
 rem ============================
 for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "(Get-Date).AddDays(-7).ToString('MM/dd/yyyy')"`) do set "DEFAULT_DATE=%%I"
@@ -67,8 +74,8 @@ F:\Lgi\GestCom\FloW.exe ^
  -FCTN EXPORTARTICLE ^
  -PATH "F:\LBCScripts\exports2\stocks" ^
  -XMLFILE "Stock" ^
- -NOFTP 3 ^
- -FTPPATH "/upload/ess_stocks"
+ -NOFTP 5 ^
+ -FTPPATH "/ess_stocks"
 
 echo.
 pause
@@ -89,8 +96,8 @@ F:\Lgi\GestCom\FloW.exe ^
  -SKLOG ^
  -FCTN EXPORTARTICLE ^
  -PATH "F:\LBCScripts\exports2\articles" ^
- -NOFTP 3 ^
- -FTPPATH "/upload/ess_articles" ^
+ -NOFTP 5 ^
+ -FTPPATH "/ess_articles" ^
  -FILTRE "ARTDATEL>='%DATE_SINCE%'"
 
 echo.
@@ -116,16 +123,7 @@ F:\Lgi\GestCom\FloW.exe ^
  -PATH "F:\LBCScripts\exports2\commandes"
 
 rem 2/ FTP upload
-F:\Lgi\GestCom\FloW.exe ^
- -DBN "ESSENCIAGUA" ^
- -USR "LBCScript" ^
- -PWDC "hfnS02e2F6EvV/A" ^
- -SKLOG ^
- -FCTN FTPDIRUPLOAD ^
- -LOCALDIR "F:\LBCScripts\exports2\commandes\*.csv" ^
- -NOFTP 3 ^
- -FTPPATH "/upload/ess_commandes" ^
- -ARCHIVEDIR
+call :ftp_upload "F:\LBCScripts\exports2\commandes" "/ess_commandes"
 
 rem 3/ Delete local CSV files
 echo Deleting local CSV files in commandes directory...
@@ -162,16 +160,7 @@ F:\Lgi\GestCom\FloW.exe ^
  -PATH "F:\LBCScripts\exports2\commandes"
 
 rem 2/ FTP upload
-F:\Lgi\GestCom\FloW.exe ^
- -DBN "ESSENCIAGUA" ^
- -USR "LBCScript" ^
- -PWDC "hfnS02e2F6EvV/A" ^
- -SKLOG ^
- -FCTN FTPDIRUPLOAD ^
- -LOCALDIR "F:\LBCScripts\exports2\commandes\*.csv" ^
- -NOFTP 3 ^
- -FTPPATH "/upload/ess_commandes" ^
- -ARCHIVEDIR
+call :ftp_upload "F:\LBCScripts\exports2\commandes" "/ess_commandes"
 
 rem 3/ Delete local CSV files
 echo Deleting local CSV files in commandes directory...
@@ -208,16 +197,7 @@ F:\Lgi\GestCom\FloW.exe ^
  -PATH "F:\LBCScripts\exports2\commandes"
 
 rem 2/ FTP upload
-F:\Lgi\GestCom\FloW.exe ^
- -DBN "ESSENCIAGUA" ^
- -USR "LBCScript" ^
- -PWDC "hfnS02e2F6EvV/A" ^
- -SKLOG ^
- -FCTN FTPDIRUPLOAD ^
- -LOCALDIR "F:\LBCScripts\exports2\commandes\*.csv" ^
- -NOFTP 3 ^
- -FTPPATH "/upload/ess_commandes" ^
- -ARCHIVEDIR
+call :ftp_upload "F:\LBCScripts\exports2\commandes" "/ess_commandes"
 
 rem 3/ Delete local CSV files
 echo Deleting local CSV files in commandes directory...
@@ -242,13 +222,38 @@ F:\Lgi\GestCom\FloW.exe ^
  -SKLOG ^
  -FCTN EXPORTCUSTOMER ^
  -PATH "F:\LBCScripts\exports\clients" ^
- -NOFTP 3 ^
- -FTPPATH "/upload/ess_clients" ^
+ -NOFTP 5 ^
+ -FTPPATH "/ess_clients" ^
  -FILTRE "CUSDATEL>='%DATE_SINCE%'"
 
 echo.
 pause
 goto menu
+
+rem ============================
+rem  FTP upload subroutine
+rem  Usage: call :ftp_upload "local_dir" "/remote_path"
+rem ============================
+:ftp_upload
+set "FTP_LOCAL=%~1"
+set "FTP_REMOTE=%~2"
+echo.
+echo Uploading CSV files from %FTP_LOCAL% to ftp://%FTP_SERVER%%FTP_REMOTE%/ ...
+set "FTP_UPLOADED=0"
+set "FTP_ERRORS=0"
+for %%f in ("%FTP_LOCAL%\*.csv") do (
+    echo   Uploading %%~nxf...
+    curl -s -T "%%f" "ftp://%FTP_SERVER%%FTP_REMOTE%/" -u "%FTP_USER%:%FTP_PASS%"
+    if errorlevel 1 (
+        echo     FAILED
+        set /a FTP_ERRORS+=1
+    ) else (
+        echo     OK
+        set /a FTP_UPLOADED+=1
+    )
+)
+echo FTP upload complete: !FTP_UPLOADED! uploaded, !FTP_ERRORS! errors.
+goto :eof
 
 :end
 echo Done.
