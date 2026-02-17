@@ -57,13 +57,18 @@ if ($Step -eq 'TriggerExport') {
         Write-Host "------------------------------------------------------------------------"
         Write-Host "Order #$orderId (source: $sourceId)"
 
-        # Check if already imported
-        $existing = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId;") 2>$null
-        if ($existing) {
+        # Check if already imported (imported=1)
+        $rawResult = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId AND imported=1;" 2>$null)
+        $existing = ("$rawResult").Trim()
+        if ($existing -ne '') {
             Write-Host "  SKIP - already imported."
             $skipped++
             continue
         }
+
+        # Save order to DB (imported=0) if not already there
+        $safeSourceId = if ($sourceId) { "$sourceId" -replace "'", "''" } else { '' }
+        sqlite3 $DbName "INSERT OR IGNORE INTO imported_orders (order_id, channel_id, source_id) VALUES ($orderId, $ChannelId, '$safeSourceId');"
 
         # Trigger CSV export for this order
         try {
@@ -71,7 +76,7 @@ if ($Step -eq 'TriggerExport') {
             $exportUrl = "$ApiBase/export-to-idsystem/$ChannelId/order/$orderId"
             curl.exe -s -f $exportUrl | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
-            Write-Host "  OK - export triggered."
+            Write-Host "  OK - saved to DB + export triggered."
             $exported++
         } catch {
             Write-Host "  FAILED - export error: $_"
@@ -170,10 +175,11 @@ if ($Step -eq 'CleanDuplicates') {
             }
             $orderId = ($lines[1] -split ';')[0].Trim('"')
 
-            # Check if already imported in DB
-            $existing = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId;") 2>$null
-            if ($existing) {
-                Write-Host "  $($csv.Name) - order #$orderId already imported, deleting."
+            # Check if already imported in DB (imported=1)
+            $rawResult = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId AND imported=1;" 2>$null)
+            $existing = ("$rawResult").Trim()
+            if ($existing -ne '') {
+                Write-Host "  $($csv.Name) - order #$orderId already imported (imported=1), deleting."
                 Remove-Item $csv.FullName -Force
                 $deleted++
                 continue
@@ -234,21 +240,20 @@ if ($Step -eq 'ImportAndRecord') {
     Write-Host "FloW launched."
     Write-Host ""
 
-    # Record imported orders in database
+    # Mark orders as imported in database
     $recorded = 0
     foreach ($entry in $orderMap.GetEnumerator()) {
         $orderId = $entry.Key
-        $sourceFile = $entry.Value -replace "'", "''"
-        sqlite3 $DbName "INSERT OR IGNORE INTO imported_orders (order_id, channel_id, source_id) VALUES ($orderId, $ChannelId, '$sourceFile');"
+        sqlite3 $DbName "UPDATE imported_orders SET imported=1, imported_at=datetime('now') WHERE order_id=$orderId;"
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  Recorded order #$orderId"
+            Write-Host "  Marked order #$orderId as imported"
             $recorded++
         } else {
-            Write-Host "  WARNING: failed to record order #$orderId"
+            Write-Host "  WARNING: failed to mark order #$orderId"
         }
     }
 
     Write-Host ""
-    Write-Host "Import complete: $recorded order(s) recorded in database."
+    Write-Host "Import complete: $recorded order(s) marked as imported."
     exit 0
 }

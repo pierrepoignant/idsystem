@@ -40,8 +40,8 @@ set "CHANNEL_NAME=!CHANNEL_1_NAME!"
 set "DATE_SINCE="
 
 :: --- Compute default date from last imported order ---
-sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported_at TEXT DEFAULT (datetime('now')));" 2>nul
-for /f %%d in ('sqlite3 "%DB_NAME%" "SELECT date(MAX(imported_at)) FROM imported_orders;" 2^>nul') do (
+sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), imported_at TEXT);" 2>nul
+for /f %%d in ('sqlite3 "%DB_NAME%" "SELECT date(MAX(imported_at)) FROM imported_orders WHERE imported=1;" 2^>nul') do (
     if not "%%d"=="" set "DATE_SINCE=%%d"
 )
 
@@ -156,11 +156,14 @@ goto MAIN_MENU
 :: INIT DB (called before steps that need it)
 :: ============================================================================
 :INIT_DB
-sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported_at TEXT DEFAULT (datetime('now')));"
+sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), imported_at TEXT);"
 if errorlevel 1 (
     echo ERROR: Failed to initialize database. Is sqlite3.exe in PATH?
     exit /b 1
 )
+:: Migrate old schema: add imported column if missing
+sqlite3 "%DB_NAME%" "ALTER TABLE imported_orders ADD COLUMN imported INTEGER DEFAULT 0;" 2>nul
+sqlite3 "%DB_NAME%" "ALTER TABLE imported_orders ADD COLUMN created_at TEXT;" 2>nul
 exit /b 0
 
 
