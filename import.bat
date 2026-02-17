@@ -39,6 +39,12 @@ set "CHANNEL_ID=1"
 set "CHANNEL_NAME=!CHANNEL_1_NAME!"
 set "DATE_SINCE="
 
+:: --- Compute default date from last imported order ---
+sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported_at TEXT DEFAULT (datetime('now')));" 2>nul
+for /f %%d in ('sqlite3 "%DB_NAME%" "SELECT date(MAX(imported_at)) FROM imported_orders;" 2^>nul') do (
+    if not "%%d"=="" set "DATE_SINCE=%%d"
+)
+
 :: --- Check command-line argument for channel ---
 if not "%~1"=="" (
     set "CHANNEL_ID=%~1"

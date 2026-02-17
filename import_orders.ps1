@@ -228,15 +228,10 @@ if ($Step -eq 'ImportAndRecord') {
     Write-Host "Found $($orderMap.Count) order(s) to import: $($orderMap.Keys -join ', ')"
     Write-Host ""
 
-    # Run FloW
-    Write-Host "Running FloW import..."
+    # Run FloW (runs in background, does not return exit code)
+    Write-Host "Launching FloW import..."
     & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -PATH $ImportPath -PROFIL $Profil
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: FloW import failed (exit code: $LASTEXITCODE)"
-        exit 1
-    }
-
-    Write-Host "FloW import OK."
+    Write-Host "FloW launched."
     Write-Host ""
 
     # Record imported orders in database
