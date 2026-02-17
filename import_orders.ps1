@@ -155,9 +155,10 @@ if ($Step -eq 'CleanDuplicates') {
         exit 0
     }
 
-    Write-Host "Checking $($csvFiles.Count) CSV file(s) against database..."
+    Write-Host "Checking $($csvFiles.Count) CSV file(s) for duplicates and already imported..."
     $deleted = 0
     $kept = 0
+    $seenOrders = @{}
 
     foreach ($csv in $csvFiles) {
         try {
@@ -169,15 +170,26 @@ if ($Step -eq 'CleanDuplicates') {
             }
             $orderId = ($lines[1] -split ';')[0].Trim('"')
 
+            # Check if already imported in DB
             $existing = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId;") 2>$null
             if ($existing) {
                 Write-Host "  $($csv.Name) - order #$orderId already imported, deleting."
                 Remove-Item $csv.FullName -Force
                 $deleted++
-            } else {
-                Write-Host "  $($csv.Name) - order #$orderId is new, keeping."
-                $kept++
+                continue
             }
+
+            # Check if duplicate in folder (same order_id already seen)
+            if ($seenOrders.ContainsKey($orderId)) {
+                Write-Host "  $($csv.Name) - order #$orderId duplicate in folder (keeping $($seenOrders[$orderId])), deleting."
+                Remove-Item $csv.FullName -Force
+                $deleted++
+                continue
+            }
+
+            $seenOrders[$orderId] = $csv.Name
+            Write-Host "  $($csv.Name) - order #$orderId is new, keeping."
+            $kept++
         } catch {
             Write-Host "  $($csv.Name) - error reading file: $_"
             $kept++
