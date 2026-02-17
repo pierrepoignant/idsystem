@@ -12,7 +12,7 @@ F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -S
 
 F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -SKLOG -FCTN IMPORTORDER -AUTO 1 -PATH "F:\LBCScripts\imports2\shopify\" -WITHWS -NOFTP 3 -FTPPATH "/upload/ess_commandes_export/" -PROFIL "Shopify"
 
-F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -SKLOG -FCTN IMPORTORDER -PATH "F:\LBCScripts\imports2\shopify\" -NOFTP 3  -FTPPATH "/upload" -PROFIL "Shopify"
+F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -SKLOG -FCTN IMPORTORDER -PATH "F:\LBCScripts\imports2\commandes\" -NOFTP 5  -FTPPATH "/ess_commandes_export" -PROFIL "Prestashop"
 
 
 'IMPORTORDER'	Import Commande Vente	-AUTO 1
