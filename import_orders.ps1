@@ -174,7 +174,8 @@ if ($Step -eq 'CleanDuplicates') {
                 $kept++
                 continue
             }
-            $orderId = ($lines[1] -split ';')[0].Trim('"')
+            $orderCode = [long](($lines[1] -split ';')[0].Trim('"'))
+            $orderId = $orderCode - 90000000
 
             # Check if already imported in DB (imported=1)
             $rawResult = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId AND imported=1;" 2>$null)
@@ -224,8 +225,9 @@ if ($Step -eq 'ImportAndRecord') {
         try {
             $lines = Get-Content $csv.FullName
             if ($lines.Count -ge 2) {
-                $orderId = ($lines[1] -split ';')[0].Trim('"')
-                $orderMap[$orderId] = $csv.Name
+                $orderCode = [long](($lines[1] -split ';')[0].Trim('"'))
+                $orderId = $orderCode - 90000000
+                $orderMap["$orderId"] = $csv.Name
             }
         } catch {
             Write-Host "  WARNING: could not read $($csv.Name)"
