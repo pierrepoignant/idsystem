@@ -16,7 +16,8 @@ param(
     [string]$Dbn,
     [string]$Usr,
     [string]$Pwdc,
-    [string]$Profil
+    [string]$Profil,
+    [string]$CustomerImportPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -234,10 +235,22 @@ if ($Step -eq 'ImportAndRecord') {
     Write-Host "Found $($orderMap.Count) order(s) to import: $($orderMap.Keys -join ', ')"
     Write-Host ""
 
-    # Run FloW (runs in background, does not return exit code)
-    Write-Host "Launching FloW import..."
+    # Import customers first (if customer CSV files exist)
+    $customerCsvFiles = Get-ChildItem -Path $CustomerImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
+    if ($customerCsvFiles -and $customerCsvFiles.Count -gt 0) {
+        Write-Host "Launching FloW customer import ($($customerCsvFiles.Count) file(s))..."
+        & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTCUSTOMER -PATH $CustomerImportPath -PROFIL $Profil
+        Write-Host "FloW customer import launched."
+        Write-Host ""
+    } else {
+        Write-Host "No customer CSV files to import."
+        Write-Host ""
+    }
+
+    # Then import orders
+    Write-Host "Launching FloW order import..."
     & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -PATH $ImportPath -PROFIL $Profil
-    Write-Host "FloW launched."
+    Write-Host "FloW order import launched."
     Write-Host ""
 
     # Mark orders as imported in database

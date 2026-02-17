@@ -270,7 +270,7 @@ if errorlevel 1 (
     goto MAIN_MENU
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
 
 if errorlevel 1 (
     echo.
@@ -349,7 +349,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step CleanDup
 echo.
 echo --- Step 4: Import via FloW ---
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
 if errorlevel 1 (
     echo.
     echo Full import completed with errors in Step 4.
