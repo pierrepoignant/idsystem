@@ -77,12 +77,11 @@ echo.
 echo 0. Select Channel
 echo S. Set Date
 echo.
-echo 1. Trigger CSV Export (API call)
-echo 2. Download from FTP to local folder
-echo 3. Clean duplicate files
-echo 4. Import via FloW
+echo 1. Prepare Import (export + FTP download + clean duplicates)
+echo 2. Import Customers
+echo 3. Import Orders
 echo.
-echo 5. Full Import (1+2+3+4)
+echo 4. Full Import (1+2+3)
 echo.
 echo Q. Quit
 echo.
@@ -91,11 +90,10 @@ set /p choice="Enter your choice: "
 
 if /i "%choice%"=="0" goto SELECT_CHANNEL
 if /i "%choice%"=="S" goto SET_DATE
-if /i "%choice%"=="1" goto STEP_TRIGGER
-if /i "%choice%"=="2" goto STEP_FTP
-if /i "%choice%"=="3" goto STEP_CLEAN
-if /i "%choice%"=="4" goto STEP_IMPORT
-if /i "%choice%"=="5" goto FULL_IMPORT
+if /i "%choice%"=="1" goto STEP_PREPARE
+if /i "%choice%"=="2" goto STEP_IMPORT_CUSTOMERS
+if /i "%choice%"=="3" goto STEP_IMPORT_ORDERS
+if /i "%choice%"=="4" goto FULL_IMPORT
 if /i "%choice%"=="Q" goto END
 
 echo Invalid choice. Try again.
@@ -255,12 +253,84 @@ goto MAIN_MENU
 
 
 :: ============================================================================
-:: STEP 4: Import via FloW
+:: MENU 1: Prepare Import (trigger export + FTP download + clean duplicates)
 :: ============================================================================
-:STEP_IMPORT
+:STEP_PREPARE
 echo.
 echo ========================================================================
-echo Step 4: Import via FloW from %IMPORT_PATH%
+echo Prepare Import for %CHANNEL_NAME% [ID: %CHANNEL_ID%]
+echo ========================================================================
+
+call :INIT_DB
+if errorlevel 1 (
+    pause
+    goto MAIN_MENU
+)
+
+:: Compute today's date if DATE_SINCE is not set
+if "%DATE_SINCE%"=="" (
+    for /f %%d in ('powershell -Command "(Get-Date).ToString('yyyy-MM-dd')"') do set "DATE_SINCE_FINAL=%%d"
+) else (
+    set "DATE_SINCE_FINAL=%DATE_SINCE%"
+)
+
+echo.
+echo --- Trigger CSV Export ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -DateSince "%DATE_SINCE_FINAL%" -DbName "%DB_NAME%"
+if errorlevel 1 (
+    echo.
+    echo ABORTED: CSV export failed.
+    pause
+    goto MAIN_MENU
+)
+
+echo.
+echo --- Download from FTP (orders) ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_ORDERS%" -ImportPath "%IMPORT_PATH%"
+
+echo.
+echo --- Download from FTP (customers) ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_CUSTOMERS%" -ImportPath "%IMPORT_PATH_CUSTOMERS%"
+
+echo.
+echo --- Clean duplicate files ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step CleanDuplicates -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%"
+
+echo.
+echo Prepare Import completed.
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
+:: MENU 2: Import Customers
+:: ============================================================================
+:STEP_IMPORT_CUSTOMERS
+echo.
+echo ========================================================================
+echo Import Customers from %IMPORT_PATH_CUSTOMERS%
+echo ========================================================================
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportCustomers -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+
+echo.
+echo Import Customers completed.
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
+:: MENU 3: Import Orders
+:: ============================================================================
+:STEP_IMPORT_ORDERS
+echo.
+echo ========================================================================
+echo Import Orders from %IMPORT_PATH%
 echo ========================================================================
 echo.
 
@@ -270,21 +340,16 @@ if errorlevel 1 (
     goto MAIN_MENU
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportOrders -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
 
-if errorlevel 1 (
-    echo.
-    echo Step 4 FAILED.
-) else (
-    echo.
-    echo Step 4 completed.
-)
+echo.
+echo Import Orders completed.
 pause
 goto MAIN_MENU
 
 
 :: ============================================================================
-:: FULL IMPORT (Steps 1+2+3+4)
+:: FULL IMPORT (Prepare + Customers + Orders)
 :: ============================================================================
 :FULL_IMPORT
 echo.
@@ -306,59 +371,45 @@ if "%DATE_SINCE%"=="" (
 )
 
 echo.
-echo --- Step 1: Trigger CSV Export ---
+echo --- Trigger CSV Export ---
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -DateSince "%DATE_SINCE_FINAL%" -DbName "%DB_NAME%"
 if errorlevel 1 (
     echo.
-    echo ABORTED: Step 1 failed.
+    echo ABORTED: CSV export failed.
     pause
     goto MAIN_MENU
 )
 
 echo.
-echo --- Step 2: Download from FTP ---
-
-echo.
-echo --- Orders: %FTP_DIR_ORDERS% ---
+echo --- Download from FTP (orders) ---
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_ORDERS%" -ImportPath "%IMPORT_PATH%"
-if errorlevel 1 (
-    echo.
-    echo ABORTED: Step 2 failed (orders).
-    pause
-    goto MAIN_MENU
-)
 
 echo.
-echo --- Customers: %FTP_DIR_CUSTOMERS% ---
+echo --- Download from FTP (customers) ---
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_CUSTOMERS%" -ImportPath "%IMPORT_PATH_CUSTOMERS%"
-if errorlevel 1 (
-    echo.
-    echo ABORTED: Step 2 failed (customers).
-    pause
-    goto MAIN_MENU
-)
 
 echo.
-echo --- Step 3: Clean duplicate files ---
+echo --- Clean duplicate files ---
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step CleanDuplicates -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%"
 
 echo.
-echo --- Step 4: Import via FloW ---
+echo --- Import Customers ---
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
-if errorlevel 1 (
-    echo.
-    echo Full import completed with errors in Step 4.
-) else (
-    echo.
-    echo ========================================================================
-    echo Full import completed successfully.
-    echo ========================================================================
-)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportCustomers -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+
+echo.
+echo --- Import Orders ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportOrders -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+
+echo.
+echo ========================================================================
+echo Full import completed.
+echo ========================================================================
 
 pause
 goto MAIN_MENU

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('TriggerExport','FtpDownload','CleanDuplicates','ImportAndRecord')]
+    [ValidateSet('TriggerExport','FtpDownload','CleanDuplicates','ImportCustomers','ImportOrders')]
     [string]$Step,
 
     [string]$ApiBase,
@@ -23,7 +23,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ---------------------------------------------------------------------------
-# Step 1: Fetch new orders from API, check DB, trigger CSV export for new ones
+# Trigger CSV export: fetch orders from API, save to DB, trigger export
 # ---------------------------------------------------------------------------
 if ($Step -eq 'TriggerExport') {
     # 1.1 Fetch order list from API
@@ -94,7 +94,7 @@ if ($Step -eq 'TriggerExport') {
 }
 
 # ---------------------------------------------------------------------------
-# Step 1: Download CSV files from FTP, then delete remote copies
+# FTP download: download CSV files, then delete remote copies
 # ---------------------------------------------------------------------------
 if ($Step -eq 'FtpDownload') {
     $ftpBase = "ftp://$FtpServer$FtpDir"
@@ -152,7 +152,7 @@ if ($Step -eq 'FtpDownload') {
 }
 
 # ---------------------------------------------------------------------------
-# Step 2: Clean duplicate CSV files (already imported orders)
+# Clean duplicate CSV files (already imported orders)
 # ---------------------------------------------------------------------------
 if ($Step -eq 'CleanDuplicates') {
     $csvFiles = Get-ChildItem -Path $ImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
@@ -210,13 +210,29 @@ if ($Step -eq 'CleanDuplicates') {
 }
 
 # ---------------------------------------------------------------------------
-# Step 3: Import via FloW + record imported orders in DB
+# Import customers via FloW
 # ---------------------------------------------------------------------------
-if ($Step -eq 'ImportAndRecord') {
+if ($Step -eq 'ImportCustomers') {
+    $customerCsvFiles = Get-ChildItem -Path $CustomerImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
+    if (-not $customerCsvFiles -or $customerCsvFiles.Count -eq 0) {
+        Write-Host "No customer CSV files to import."
+        exit 0
+    }
+
+    Write-Host "Launching FloW customer import ($($customerCsvFiles.Count) file(s))..."
+    & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTCUSTOMER -PATH $CustomerImportPath -PROFIL $Profil
+    Write-Host "FloW customer import launched."
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Import orders via FloW + record in DB
+# ---------------------------------------------------------------------------
+if ($Step -eq 'ImportOrders') {
     # Collect order numbers from CSV files before running FloW
     $csvFiles = Get-ChildItem -Path $ImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
     if (-not $csvFiles -or $csvFiles.Count -eq 0) {
-        Write-Host "No CSV files to import."
+        Write-Host "No order CSV files to import."
         exit 0
     }
 
@@ -237,19 +253,6 @@ if ($Step -eq 'ImportAndRecord') {
     Write-Host "Found $($orderMap.Count) order(s) to import: $($orderMap.Keys -join ', ')"
     Write-Host ""
 
-    # Import customers first (if customer CSV files exist)
-    $customerCsvFiles = Get-ChildItem -Path $CustomerImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
-    if ($customerCsvFiles -and $customerCsvFiles.Count -gt 0) {
-        Write-Host "Launching FloW customer import ($($customerCsvFiles.Count) file(s))..."
-        & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTCUSTOMER -PATH $CustomerImportPath -PROFIL $Profil
-        Write-Host "FloW customer import launched."
-        Write-Host ""
-    } else {
-        Write-Host "No customer CSV files to import."
-        Write-Host ""
-    }
-
-    # Then import orders
     Write-Host "Launching FloW order import..."
     & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -PATH $ImportPath -PROFIL $Profil
     Write-Host "FloW order import launched."
