@@ -122,15 +122,17 @@ if ($Step -eq 'FtpDownload') {
 
     foreach ($file in $files) {
         Write-Host "  Downloading $file..."
-        curl.exe -s -u "${FtpUser}:${FtpPass}" "$ftpBase/$file" -o "$ImportPath\$file"
+        # URL-encode special characters in filename (#, $, etc.)
+        $encodedFile = [Uri]::EscapeDataString($file)
+        $output = curl.exe -u "${FtpUser}:${FtpPass}" "$ftpBase/$encodedFile" -o "$ImportPath\$file" 2>&1
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "    FAILED to download."
+            Write-Host "    FAILED to download: $output"
             $errors++
             continue
         }
 
         Write-Host "  Deleting remote $file..."
-        curl.exe -s -u "${FtpUser}:${FtpPass}" "ftp://$FtpServer/" -Q "DELE $FtpDir/$file" | Out-Null
+        curl.exe -s -u "${FtpUser}:${FtpPass}" "ftp://$FtpServer/" -Q "DELE $FtpDir/$file" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "    WARNING: downloaded but failed to delete remote copy."
         }
