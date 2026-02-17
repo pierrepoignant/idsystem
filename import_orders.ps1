@@ -253,20 +253,25 @@ if ($Step -eq 'ImportAndRecord') {
     Write-Host "FloW order import launched."
     Write-Host ""
 
-    # Mark orders as imported in database
-    $recorded = 0
+    # Mark orders as imported in database (single transaction)
+    $sqlStatements = "BEGIN TRANSACTION;`n"
     foreach ($entry in $orderMap.GetEnumerator()) {
         $orderId = $entry.Key
-        sqlite3 $DbName "UPDATE imported_orders SET imported=1, imported_at=datetime('now') WHERE order_id=$orderId;"
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  Marked order #$orderId as imported"
-            $recorded++
-        } else {
-            Write-Host "  WARNING: failed to mark order #$orderId"
-        }
+        $sqlStatements += "UPDATE imported_orders SET imported=1, imported_at=datetime('now') WHERE order_id=$orderId;`n"
     }
+    $sqlStatements += "COMMIT;"
 
-    Write-Host ""
-    Write-Host "Import complete: $recorded order(s) marked as imported."
+    Write-Host "Marking $($orderMap.Count) order(s) as imported..."
+    $sqlStatements | sqlite3 $DbName
+    if ($LASTEXITCODE -eq 0) {
+        foreach ($entry in $orderMap.GetEnumerator()) {
+            Write-Host "  Marked order #$($entry.Key) as imported"
+        }
+        Write-Host ""
+        Write-Host "Import complete: $($orderMap.Count) order(s) marked as imported."
+    } else {
+        Write-Host "ERROR: Failed to mark orders as imported."
+        exit 1
+    }
     exit 0
 }
