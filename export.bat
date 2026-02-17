@@ -26,10 +26,11 @@ echo   3 ^) Push commandes
 echo   4 ^) Push clients
 echo   5 ^) Push 1 order
 echo   6 ^) Push orders by date
+echo   7 ^) Push orders since date
 echo   Q ^) Quit
 echo.
 set "CHOICE="
-set /p CHOICE=Choice (1-6, Q to quit) :
+set /p CHOICE=Choice (1-7, Q to quit) :
 
 if /I "%CHOICE%"=="1" goto push_stock
 if /I "%CHOICE%"=="2" goto push_articles
@@ -37,6 +38,7 @@ if /I "%CHOICE%"=="3" goto push_commandes
 if /I "%CHOICE%"=="4" goto push_clients
 if /I "%CHOICE%"=="5" goto push_one_order
 if /I "%CHOICE%"=="6" goto push_orders_by_date
+if /I "%CHOICE%"=="7" goto push_orders_since_date
 if /I "%CHOICE%"=="Q" goto end
 
 echo.
@@ -194,6 +196,43 @@ F:\Lgi\GestCom\FloW.exe ^
  -SKLOG ^
  -FCTN FREEEXPORTORDER ^
  -FILTRE "ORDENTRYDATE='!EXACT_DATE!'" ^
+ -PATH "F:\LBCScripts\exports2\commandes"
+
+rem 2/ FTP upload
+call :ftp_upload "F:\LBCScripts\exports2\commandes" "/ess_commandes"
+
+rem 3/ Delete local CSV files
+echo Deleting local CSV files in commandes directory...
+del /Q "F:\LBCScripts\exports2\commandes\*.csv"
+
+echo.
+pause
+goto menu
+
+rem ============================
+rem  PUSH ORDERS SINCE DATE
+rem ============================
+:push_orders_since_date
+echo.
+set "SINCE_DATE="
+set /p SINCE_DATE=Export orders since date (mm/dd/yyyy, e.g. 02/17/2026) :
+
+if "!SINCE_DATE!"=="" (
+  echo No date entered.
+  pause
+  goto menu
+)
+
+echo Running COMMANDES export since !SINCE_DATE! ...
+
+rem 1/ Export orders since that date
+F:\Lgi\GestCom\FloW.exe ^
+ -DBN "ESSENCIAGUA" ^
+ -USR "LBCScript" ^
+ -PWDC "hfnS02e2F6EvV/A" ^
+ -SKLOG ^
+ -FCTN FREEEXPORTORDER ^
+ -FILTRE "ORDENTRYDATE>='!SINCE_DATE!'" ^
  -PATH "F:\LBCScripts\exports2\commandes"
 
 rem 2/ FTP upload
