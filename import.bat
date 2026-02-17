@@ -37,6 +37,7 @@ set "CHANNEL_10_NAME=Prestashop ES"
 :: --- Defaults ---
 set "CHANNEL_ID=1"
 set "CHANNEL_NAME=!CHANNEL_1_NAME!"
+set "DATE_SINCE="
 
 :: --- Check command-line argument for channel ---
 if not "%~1"=="" (
@@ -58,9 +59,15 @@ echo Order Import with SQLite Tracking
 echo ========================================================================
 echo.
 echo Current Channel: %CHANNEL_NAME% [ID: %CHANNEL_ID%]
+if "%DATE_SINCE%"=="" (
+    echo Date Since:      Today
+) else (
+    echo Date Since:      %DATE_SINCE%
+)
 echo Import Path:     %IMPORT_PATH%
 echo.
 echo 0. Select Channel
+echo S. Set Date
 echo.
 echo 1. Trigger CSV Export (API call)
 echo 2. Download from FTP to local folder
@@ -75,6 +82,7 @@ echo ========================================================================
 set /p choice="Enter your choice: "
 
 if /i "%choice%"=="0" goto SELECT_CHANNEL
+if /i "%choice%"=="S" goto SET_DATE
 if /i "%choice%"=="1" goto STEP_TRIGGER
 if /i "%choice%"=="2" goto STEP_FTP
 if /i "%choice%"=="3" goto STEP_CLEAN
@@ -117,6 +125,28 @@ goto MAIN_MENU
 
 
 :: ============================================================================
+:: SET DATE
+:: ============================================================================
+:SET_DATE
+cls
+echo ========================================================================
+echo Set Date Since (YYYY-MM-DD format, or leave blank for today)
+echo ========================================================================
+echo.
+set "input_date="
+set /p input_date="Date since: "
+if "%input_date%"=="" (
+    set "DATE_SINCE="
+    echo Using today's date.
+) else (
+    set "DATE_SINCE=%input_date%"
+    echo Date set to %input_date%.
+)
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
 :: INIT DB (called before steps that need it)
 :: ============================================================================
 :INIT_DB
@@ -138,7 +168,20 @@ echo Step 1: Trigger CSV Export for %CHANNEL_NAME%
 echo ========================================================================
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%"
+call :INIT_DB
+if errorlevel 1 (
+    pause
+    goto MAIN_MENU
+)
+
+:: Compute today's date if DATE_SINCE is not set
+if "%DATE_SINCE%"=="" (
+    for /f %%d in ('powershell -Command "(Get-Date).ToString('yyyy-MM-dd')"') do set "DATE_SINCE_FINAL=%%d"
+) else (
+    set "DATE_SINCE_FINAL=%DATE_SINCE%"
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -DateSince "%DATE_SINCE_FINAL%" -DbName "%DB_NAME%"
 
 if errorlevel 1 (
     echo.
@@ -242,10 +285,17 @@ if errorlevel 1 (
     goto MAIN_MENU
 )
 
+:: Compute today's date if DATE_SINCE is not set
+if "%DATE_SINCE%"=="" (
+    for /f %%d in ('powershell -Command "(Get-Date).ToString('yyyy-MM-dd')"') do set "DATE_SINCE_FINAL=%%d"
+) else (
+    set "DATE_SINCE_FINAL=%DATE_SINCE%"
+)
+
 echo.
 echo --- Step 1: Trigger CSV Export ---
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -DateSince "%DATE_SINCE_FINAL%" -DbName "%DB_NAME%"
 if errorlevel 1 (
     echo.
     echo ABORTED: Step 1 failed.

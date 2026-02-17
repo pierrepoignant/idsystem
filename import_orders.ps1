@@ -5,6 +5,7 @@ param(
 
     [string]$ApiBase,
     [string]$ChannelId,
+    [string]$DateSince,
     [string]$DbName,
     [string]$ImportPath,
     [string]$FtpServer,
@@ -21,19 +22,69 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ---------------------------------------------------------------------------
-# Step 0: Trigger CSV export on remote server
+# Step 1: Fetch new orders from API, check DB, trigger CSV export for new ones
 # ---------------------------------------------------------------------------
 if ($Step -eq 'TriggerExport') {
-    Write-Host "Triggering CSV export for channel $ChannelId..."
-    $url = "$ApiBase/export-to-idsystem/orders/$ChannelId"
-    Write-Host "  URL: $url"
-    curl.exe -s -f $url | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: API call failed (exit code: $LASTEXITCODE)"
+    # 1.1 Fetch order list from API
+    $url = "$ApiBase/get-new-orders/$ChannelId/$DateSince"
+    Write-Host "Fetching orders from API: $url"
+    try {
+        $json = (curl.exe -s -f $url) -join ''
+        if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
+        $response = $json | ConvertFrom-Json
+    } catch {
+        Write-Host "ERROR: Failed to fetch orders from API: $_"
         exit 1
     }
-    Write-Host "  Export triggered OK."
-    exit 0
+
+    if (-not $response.orders -or $response.orders.Count -eq 0) {
+        Write-Host "No new orders found."
+        exit 0
+    }
+
+    $orders = $response.orders
+    Write-Host "Found $($orders.Count) order(s) from API."
+    Write-Host ''
+
+    # 1.2 For each order, check DB and trigger export if new
+    $exported = 0
+    $skipped = 0
+    $failed = 0
+
+    foreach ($order in $orders) {
+        $orderId = $order.order_id
+        $sourceId = $order.source_id
+        Write-Host "------------------------------------------------------------------------"
+        Write-Host "Order #$orderId (source: $sourceId)"
+
+        # Check if already imported
+        $existing = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId;") 2>$null
+        if ($existing) {
+            Write-Host "  SKIP - already imported."
+            $skipped++
+            continue
+        }
+
+        # Trigger CSV export for this order
+        try {
+            Write-Host "  Triggering CSV export..."
+            $exportUrl = "$ApiBase/export-to-idsystem/$ChannelId/order/$orderId"
+            curl.exe -s -f $exportUrl | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
+            Write-Host "  OK - export triggered."
+            $exported++
+        } catch {
+            Write-Host "  FAILED - export error: $_"
+            $failed++
+        }
+    }
+
+    Write-Host ''
+    Write-Host '========================================================================'
+    Write-Host "Summary: $exported exported, $skipped skipped, $failed failed"
+    Write-Host '========================================================================'
+
+    if ($failed -gt 0) { exit 1 } else { exit 0 }
 }
 
 # ---------------------------------------------------------------------------
