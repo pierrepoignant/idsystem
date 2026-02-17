@@ -7,8 +7,7 @@ setlocal enabledelayedexpansion
 ::
 :: Prerequisites:
 ::   - sqlite3.exe must be in PATH or next to this script
-::     Download from https://www.sqlite.org/download.html
-::     ("Precompiled Binaries for Windows" > sqlite-tools-win-x64-*.zip)
+::   - curl.exe must be in PATH or next to this script
 ::   - The database file (idsystem.db) is auto-created on first run
 ::
 :: ============================================================================
@@ -19,10 +18,16 @@ set "DB_NAME=idsystem.db"
 set "USR=LBCScript"
 set "PWDC=hfnS02e2F6EvV/A"
 set "DBN=ESSENCIAGUA"
-set "FTP_PATH=/"
 set "IMPORT_PATH=F:\LBCScripts\imports2\commandes"
 set "PROFIL=Prestashop"
 set "API_BASE=https://lesbonneschoses.app/oms2"
+set "PS_SCRIPT=%~dp0import_orders.ps1"
+
+:: --- FTP Configuration ---
+set "FTP_SERVER=91.134.130.254"
+set "FTP_USER=lbcapp"
+set "FTP_PASS=123LesBonnesChoses$"
+set "FTP_DIR=/ess_commandes_export"
 
 :: --- Channels (add new channels here) ---
 set "CHANNELS=1 10"
@@ -32,7 +37,6 @@ set "CHANNEL_10_NAME=Prestashop ES"
 :: --- Defaults ---
 set "CHANNEL_ID=1"
 set "CHANNEL_NAME=!CHANNEL_1_NAME!"
-set "DATE_SINCE="
 
 :: --- Check command-line argument for channel ---
 if not "%~1"=="" (
@@ -53,21 +57,17 @@ echo ========================================================================
 echo Order Import with SQLite Tracking
 echo ========================================================================
 echo.
-if "%CHANNEL_ID%"=="" (
-    echo Current Channel: Not selected
-) else (
-    echo Current Channel: %CHANNEL_NAME% [ID: %CHANNEL_ID%]
-)
-if "%DATE_SINCE%"=="" (
-    echo Date Since:      Today
-) else (
-    echo Date Since:      %DATE_SINCE%
-)
+echo Current Channel: %CHANNEL_NAME% [ID: %CHANNEL_ID%]
+echo Import Path:     %IMPORT_PATH%
 echo.
 echo 0. Select Channel
-echo 1. Set Date
 echo.
-echo 2. Run Import
+echo 1. Trigger CSV Export (API call)
+echo 2. Download from FTP to local folder
+echo 3. Clean duplicate files
+echo 4. Import via FloW
+echo.
+echo 5. Full Import (1+2+3+4)
 echo.
 echo Q. Quit
 echo.
@@ -75,8 +75,11 @@ echo ========================================================================
 set /p choice="Enter your choice: "
 
 if /i "%choice%"=="0" goto SELECT_CHANNEL
-if /i "%choice%"=="1" goto SET_DATE
-if /i "%choice%"=="2" goto RUN_IMPORT
+if /i "%choice%"=="1" goto STEP_TRIGGER
+if /i "%choice%"=="2" goto STEP_FTP
+if /i "%choice%"=="3" goto STEP_CLEAN
+if /i "%choice%"=="4" goto STEP_IMPORT
+if /i "%choice%"=="5" goto FULL_IMPORT
 if /i "%choice%"=="Q" goto END
 
 echo Invalid choice. Try again.
@@ -114,73 +117,170 @@ goto MAIN_MENU
 
 
 :: ============================================================================
-:: SET DATE
+:: INIT DB (called before steps that need it)
 :: ============================================================================
-:SET_DATE
-cls
+:INIT_DB
+sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported_at TEXT DEFAULT (datetime('now')));"
+if errorlevel 1 (
+    echo ERROR: Failed to initialize database. Is sqlite3.exe in PATH?
+    exit /b 1
+)
+exit /b 0
+
+
+:: ============================================================================
+:: STEP 1: Trigger CSV Export
+:: ============================================================================
+:STEP_TRIGGER
+echo.
 echo ========================================================================
-echo Set Date Since (YYYY-MM-DD format, or leave blank for today)
+echo Step 1: Trigger CSV Export for %CHANNEL_NAME%
 echo ========================================================================
 echo.
-set "input_date="
-set /p input_date="Date since: "
-if "%input_date%"=="" (
-    set "DATE_SINCE="
-    echo Using today's date.
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%"
+
+if errorlevel 1 (
+    echo.
+    echo Step 1 FAILED.
 ) else (
-    set "DATE_SINCE=%input_date%"
-    echo Date set to %input_date%.
+    echo.
+    echo Step 1 completed.
 )
 pause
 goto MAIN_MENU
 
 
 :: ============================================================================
-:: RUN IMPORT
+:: STEP 2: Download from FTP
 :: ============================================================================
-:RUN_IMPORT
-if "%CHANNEL_ID%"=="" (
-    echo ERROR: Select a channel first.
+:STEP_FTP
+echo.
+echo ========================================================================
+echo Step 2: Download from FTP to %IMPORT_PATH%
+echo ========================================================================
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR%" -ImportPath "%IMPORT_PATH%"
+
+if errorlevel 1 (
+    echo.
+    echo Step 2 FAILED.
+) else (
+    echo.
+    echo Step 2 completed.
+)
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
+:: STEP 3: Clean duplicate files
+:: ============================================================================
+:STEP_CLEAN
+echo.
+echo ========================================================================
+echo Step 3: Clean duplicate files in %IMPORT_PATH%
+echo ========================================================================
+echo.
+
+call :INIT_DB
+if errorlevel 1 (
+    pause
+    goto MAIN_MENU
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step CleanDuplicates -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%"
+
+echo.
+echo Step 3 completed.
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
+:: STEP 4: Import via FloW
+:: ============================================================================
+:STEP_IMPORT
+echo.
+echo ========================================================================
+echo Step 4: Import via FloW from %IMPORT_PATH%
+echo ========================================================================
+echo.
+
+call :INIT_DB
+if errorlevel 1 (
+    pause
+    goto MAIN_MENU
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+
+if errorlevel 1 (
+    echo.
+    echo Step 4 FAILED.
+) else (
+    echo.
+    echo Step 4 completed.
+)
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
+:: FULL IMPORT (Steps 1+2+3+4)
+:: ============================================================================
+:FULL_IMPORT
+echo.
+echo ========================================================================
+echo Full Import for %CHANNEL_NAME% [ID: %CHANNEL_ID%]
+echo ========================================================================
+
+call :INIT_DB
+if errorlevel 1 (
     pause
     goto MAIN_MENU
 )
 
 echo.
-echo ========================================================================
-echo Initializing database...
-echo ========================================================================
-
-:: Init DB - create table if not exists
-sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported_at TEXT DEFAULT (datetime('now')));"
+echo --- Step 1: Trigger CSV Export ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step TriggerExport -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%"
 if errorlevel 1 (
-    echo ERROR: Failed to initialize database. Is sqlite3.exe in PATH?
+    echo.
+    echo ABORTED: Step 1 failed.
     pause
     goto MAIN_MENU
 )
-echo Database ready.
 
 echo.
-echo ========================================================================
-echo Fetching and importing orders for %CHANNEL_NAME% [ID: %CHANNEL_ID%]...
-echo ========================================================================
+echo --- Step 2: Download from FTP ---
 echo.
-
-:: Compute today's date if DATE_SINCE is not set
-if "%DATE_SINCE%"=="" (
-    for /f %%d in ('powershell -Command "(Get-Date).ToString('yyyy-MM-dd')"') do set "DATE_SINCE_FINAL=%%d"
-) else (
-    set "DATE_SINCE_FINAL=%DATE_SINCE%"
-)
-
-:: Main import loop via PowerShell script
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0import_orders.ps1" -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -DateSince "%DATE_SINCE_FINAL%" -DbName "%DB_NAME%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -FtpPath "%FTP_PATH%" -ImportPath "%IMPORT_PATH%" -Profil "%PROFIL%"
-
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR%" -ImportPath "%IMPORT_PATH%"
 if errorlevel 1 (
     echo.
-    echo Import completed with errors.
+    echo ABORTED: Step 2 failed.
+    pause
+    goto MAIN_MENU
+)
+
+echo.
+echo --- Step 3: Clean duplicate files ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step CleanDuplicates -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%"
+
+echo.
+echo --- Step 4: Import via FloW ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportAndRecord -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+if errorlevel 1 (
+    echo.
+    echo Full import completed with errors in Step 4.
 ) else (
     echo.
-    echo Import completed successfully.
+    echo ========================================================================
+    echo Full import completed successfully.
+    echo ========================================================================
 )
 
 pause

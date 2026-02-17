@@ -1,88 +1,194 @@
 param(
+    [Parameter(Mandatory=$true)]
+    [ValidateSet('TriggerExport','FtpDownload','CleanDuplicates','ImportAndRecord')]
+    [string]$Step,
+
     [string]$ApiBase,
     [string]$ChannelId,
-    [string]$DateSince,
     [string]$DbName,
+    [string]$ImportPath,
+    [string]$FtpServer,
+    [string]$FtpUser,
+    [string]$FtpPass,
+    [string]$FtpDir,
     [string]$FlowExe,
     [string]$Dbn,
     [string]$Usr,
     [string]$Pwdc,
-    [string]$FtpPath,
-    [string]$ImportPath,
     [string]$Profil
 )
 
 $ErrorActionPreference = 'Stop'
 
-$imported = 0
-$skipped = 0
-$failed = 0
-
-try {
-    Write-Host "Fetching orders from API: $ApiBase/get-new-orders/$ChannelId/$DateSince"
-    $json = (curl.exe -s -f "$ApiBase/get-new-orders/$ChannelId/$DateSince") -join ''
-    if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
-    $response = $json | ConvertFrom-Json
-} catch {
-    Write-Host "ERROR: Failed to fetch orders from API: $_"
-    exit 1
-}
-
-if (-not $response.orders -or $response.orders.Count -eq 0) {
-    Write-Host 'No new orders found.'
+# ---------------------------------------------------------------------------
+# Step 0: Trigger CSV export on remote server
+# ---------------------------------------------------------------------------
+if ($Step -eq 'TriggerExport') {
+    Write-Host "Triggering CSV export for channel $ChannelId..."
+    $url = "$ApiBase/export-to-idsystem/orders/$ChannelId"
+    Write-Host "  URL: $url"
+    curl.exe -s -f $url | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: API call failed (exit code: $LASTEXITCODE)"
+        exit 1
+    }
+    Write-Host "  Export triggered OK."
     exit 0
 }
 
-$orders = $response.orders
-Write-Host "Found $($orders.Count) order(s) to process."
-Write-Host ''
+# ---------------------------------------------------------------------------
+# Step 1: Download CSV files from FTP, then delete remote copies
+# ---------------------------------------------------------------------------
+if ($Step -eq 'FtpDownload') {
+    $ftpBase = "ftp://$FtpServer$FtpDir"
+    Write-Host "Listing files on FTP: $ftpBase"
 
-foreach ($order in $orders) {
-    $orderId = $order.order_id
-    $sourceId = $order.source_id
-    Write-Host "------------------------------------------------------------------------"
-    Write-Host "Processing order #$orderId (source: $sourceId)"
-
-    $existing = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId;") 2>$null
-    if ($existing) {
-        Write-Host "  SKIP - already imported."
-        $skipped++
-        continue
-    }
-
-    try {
-        Write-Host "  Triggering export..."
-        curl.exe -s -f "$ApiBase/export-to-idsystem/$ChannelId/order/$orderId" | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
-    } catch {
-        Write-Host "  FAILED - export error: $_"
-        $failed++
-        continue
-    }
-
-    Write-Host "  Running FloW import..."
-    & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -PATH $ImportPath -NOFTP 5 -FTPPATH $FtpPath -PROFIL $Profil
+    $listing = (curl.exe -s -u "${FtpUser}:${FtpPass}" "$ftpBase/") -join "`n"
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  FAILED - FloW import error (exit code: $LASTEXITCODE)"
-        $failed++
-        continue
+        Write-Host "ERROR: FTP listing failed (exit code: $LASTEXITCODE)"
+        exit 1
     }
 
-    $safeSourceId = if ($sourceId) { $sourceId -replace "'", "''" } else { '' }
-    sqlite3 $DbName "INSERT INTO imported_orders (order_id, channel_id, source_id) VALUES ($orderId, $ChannelId, '$safeSourceId');"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  WARNING - imported but failed to record in DB"
-        $imported++
-        continue
+    # Extract .csv filenames from directory listing
+    $files = @()
+    foreach ($line in ($listing -split "`n")) {
+        $line = $line.Trim()
+        if ($line -match '\.csv$') {
+            # Handle both simple listing and full ls -l format
+            $filename = ($line -split '\s+')[-1]
+            $files += $filename
+        }
     }
 
-    Write-Host "  OK - imported and recorded."
-    $imported++
+    if ($files.Count -eq 0) {
+        Write-Host "No CSV files found on FTP."
+        exit 0
+    }
+
+    Write-Host "Found $($files.Count) file(s) to download."
+    $downloaded = 0
+    $errors = 0
+
+    foreach ($file in $files) {
+        Write-Host "  Downloading $file..."
+        curl.exe -s -u "${FtpUser}:${FtpPass}" "$ftpBase/$file" -o "$ImportPath\$file"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "    FAILED to download."
+            $errors++
+            continue
+        }
+
+        Write-Host "  Deleting remote $file..."
+        curl.exe -s -u "${FtpUser}:${FtpPass}" "ftp://$FtpServer/" -Q "DELE $FtpDir/$file" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "    WARNING: downloaded but failed to delete remote copy."
+        }
+
+        $downloaded++
+    }
+
+    Write-Host ""
+    Write-Host "FTP download complete: $downloaded downloaded, $errors errors."
+    if ($errors -gt 0) { exit 1 } else { exit 0 }
 }
 
-Write-Host ''
-Write-Host '========================================================================'
-Write-Host "Summary: $imported imported, $skipped skipped, $failed failed"
-Write-Host '========================================================================'
+# ---------------------------------------------------------------------------
+# Step 2: Clean duplicate CSV files (already imported orders)
+# ---------------------------------------------------------------------------
+if ($Step -eq 'CleanDuplicates') {
+    $csvFiles = Get-ChildItem -Path $ImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
+    if (-not $csvFiles -or $csvFiles.Count -eq 0) {
+        Write-Host "No CSV files in import folder."
+        exit 0
+    }
 
-if ($failed -gt 0) { exit 1 } else { exit 0 }
+    Write-Host "Checking $($csvFiles.Count) CSV file(s) against database..."
+    $deleted = 0
+    $kept = 0
+
+    foreach ($csv in $csvFiles) {
+        try {
+            $lines = Get-Content $csv.FullName
+            if ($lines.Count -lt 2) {
+                Write-Host "  $($csv.Name) - skipping (not enough lines)"
+                $kept++
+                continue
+            }
+            $orderId = ($lines[1] -split ';')[0].Trim('"')
+
+            $existing = (sqlite3 $DbName "SELECT order_id FROM imported_orders WHERE order_id=$orderId;") 2>$null
+            if ($existing) {
+                Write-Host "  $($csv.Name) - order #$orderId already imported, deleting."
+                Remove-Item $csv.FullName -Force
+                $deleted++
+            } else {
+                Write-Host "  $($csv.Name) - order #$orderId is new, keeping."
+                $kept++
+            }
+        } catch {
+            Write-Host "  $($csv.Name) - error reading file: $_"
+            $kept++
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Clean complete: $deleted deleted, $kept kept."
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Step 3: Import via FloW + record imported orders in DB
+# ---------------------------------------------------------------------------
+if ($Step -eq 'ImportAndRecord') {
+    # Collect order numbers from CSV files before running FloW
+    $csvFiles = Get-ChildItem -Path $ImportPath -Filter '*.csv' -ErrorAction SilentlyContinue
+    if (-not $csvFiles -or $csvFiles.Count -eq 0) {
+        Write-Host "No CSV files to import."
+        exit 0
+    }
+
+    $orderMap = @{}
+    foreach ($csv in $csvFiles) {
+        try {
+            $lines = Get-Content $csv.FullName
+            if ($lines.Count -ge 2) {
+                $orderId = ($lines[1] -split ';')[0].Trim('"')
+                $orderMap[$orderId] = $csv.Name
+            }
+        } catch {
+            Write-Host "  WARNING: could not read $($csv.Name)"
+        }
+    }
+
+    Write-Host "Found $($orderMap.Count) order(s) to import: $($orderMap.Keys -join ', ')"
+    Write-Host ""
+
+    # Run FloW
+    Write-Host "Running FloW import..."
+    & $FlowExe -DBN $Dbn -USR $Usr -PWDC $Pwdc -SKLOG -FCTN IMPORTORDER -PATH $ImportPath -PROFIL $Profil
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: FloW import failed (exit code: $LASTEXITCODE)"
+        exit 1
+    }
+
+    Write-Host "FloW import OK."
+    Write-Host ""
+
+    # Record imported orders in database
+    $recorded = 0
+    foreach ($entry in $orderMap.GetEnumerator()) {
+        $orderId = $entry.Key
+        $sourceFile = $entry.Value -replace "'", "''"
+        sqlite3 $DbName "INSERT OR IGNORE INTO imported_orders (order_id, channel_id, source_id) VALUES ($orderId, $ChannelId, '$sourceFile');"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  Recorded order #$orderId"
+            $recorded++
+        } else {
+            Write-Host "  WARNING: failed to record order #$orderId"
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Import complete: $recorded order(s) recorded in database."
+    exit 0
+}

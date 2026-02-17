@@ -14,6 +14,8 @@ F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -S
 
 F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -SKLOG -FCTN IMPORTORDER -PATH "F:\LBCScripts\imports2\commandes\" -NOFTP 5  -FTPPATH "/comexport" -PROFIL "Prestashop"
 
+F:\LGI\Gestcom\Flow.exe -DBN ESSENCIAGUA -USR LBCScript -PWDC hfnS02e2F6EvV/A -SKLOG -FCTN IMPORTORDER -PATH "F:\LBCScripts\imports2\commandes\" -PROFIL "Prestashop"
+
 
 'IMPORTORDER'	Import Commande Vente	-AUTO 1
 -PATH +Valeur
