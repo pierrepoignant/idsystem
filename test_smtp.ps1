@@ -1,15 +1,26 @@
+# Load .env file
+$envFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $envFile) {
+    foreach ($line in Get-Content $envFile) {
+        $line = $line.Trim()
+        if ($line -and -not $line.StartsWith("#") -and $line -match "^([^=]+)=(.*)$") {
+            Set-Variable -Name $matches[1].Trim() -Value $matches[2].Trim()
+        }
+    }
+} else {
+    Write-Host "ERROR: .env file not found at $envFile"
+    Write-Host 'Create a .env file with: SENDGRID_API_KEY=SG.your_key_here'
+    exit 1
+}
+
 # SMTP Configuration
 $Server   = "smtp.sendgrid.net"
 $Port     = 587
 $Login    = "apikey"
-$Password = "" # Set your SendGrid API key here before running
+$Password = $SENDGRID_API_KEY
 $From     = "pierre@essenciagua.com"
 $FromName = "Pierre Equipe Essenciagua"
 $To       = "pierre@essenciagua.com"
-
-if (-not $Password) {
-    $Password = Read-Host "Enter SendGrid API key"
-}
 
 $ErrorActionPreference = "Stop"
 
