@@ -24,8 +24,11 @@ $To       = "pierre@essenciagua.com"
 
 $ErrorActionPreference = "Stop"
 
+# Force TLS 1.2 (required by SendGrid)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 try {
-    Write-Host "Connecting to ${Server}:${Port}..."
+    Write-Host "Connecting to ${Server}:${Port} (TLS 1.2)..."
     $smtp = New-Object System.Net.Mail.SmtpClient($Server, $Port)
     $smtp.EnableSsl = $true
     $smtp.Credentials = New-Object System.Net.NetworkCredential($Login, $Password)
