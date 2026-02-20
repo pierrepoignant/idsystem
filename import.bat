@@ -267,6 +267,17 @@ if errorlevel 1 (
     goto MAIN_MENU
 )
 
+echo.
+echo --- Sync new orders from channel ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step SyncNewOrders -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%"
+if errorlevel 1 (
+    echo.
+    echo ABORTED: Sync failed.
+    pause
+    goto MAIN_MENU
+)
+
 :: Compute today's date if DATE_SINCE is not set
 if "%DATE_SINCE%"=="" (
     for /f %%d in ('powershell -Command "(Get-Date).ToString('yyyy-MM-dd')"') do set "DATE_SINCE_FINAL=%%d"
@@ -359,6 +370,17 @@ echo ========================================================================
 
 call :INIT_DB
 if errorlevel 1 (
+    pause
+    goto MAIN_MENU
+)
+
+echo.
+echo --- Sync new orders from channel ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step SyncNewOrders -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%"
+if errorlevel 1 (
+    echo.
+    echo ABORTED: Sync failed.
     pause
     goto MAIN_MENU
 )

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('TriggerExport','FtpDownload','CleanDuplicates','ImportCustomers','ImportOrders')]
+    [ValidateSet('SyncNewOrders','TriggerExport','FtpDownload','CleanDuplicates','ImportCustomers','ImportOrders')]
     [string]$Step,
 
     [string]$ApiBase,
@@ -21,6 +21,36 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# ---------------------------------------------------------------------------
+# Sync new orders: trigger import of new orders from the channel
+# ---------------------------------------------------------------------------
+if ($Step -eq 'SyncNewOrders') {
+    $url = "$ApiBase/sync/new/$ChannelId"
+    Write-Host "Syncing new orders from channel $ChannelId..."
+    Write-Host "URL: $url"
+    Write-Host ''
+    try {
+        $json = (curl.exe -s -f $url) -join ''
+        if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
+        $response = $json | ConvertFrom-Json
+    } catch {
+        Write-Host "ERROR: Failed to sync orders: $_"
+        exit 1
+    }
+
+    if ($response.success) {
+        Write-Host "Channel:  $($response.channel.name) ($($response.channel.type))"
+        Write-Host "Imported: $($response.imported_count) order(s)"
+        Write-Host "Skipped:  $($response.skipped_count) order(s)"
+    } else {
+        Write-Host "ERROR: Sync failed."
+        Write-Host $json
+        exit 1
+    }
+
+    exit 0
+}
 
 # ---------------------------------------------------------------------------
 # Trigger CSV export: fetch orders from API, save to DB, trigger export
