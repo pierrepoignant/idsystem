@@ -41,9 +41,9 @@ set "CHANNEL_ID=1"
 set "CHANNEL_NAME=!CHANNEL_1_NAME!"
 set "DATE_SINCE="
 
-:: --- Compute default date from last imported order ---
+:: --- Compute default date from last imported order (or earliest pending order) ---
 sqlite3 "%DB_NAME%" "CREATE TABLE IF NOT EXISTS imported_orders (order_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, source_id TEXT, imported INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), imported_at TEXT);" 2>nul
-for /f %%d in ('sqlite3 "%DB_NAME%" "SELECT date(MAX(imported_at)) FROM imported_orders WHERE imported=1;" 2^>nul') do (
+for /f %%d in ('sqlite3 "%DB_NAME%" "SELECT CASE WHEN EXISTS(SELECT 1 FROM imported_orders WHERE imported=0) THEN (SELECT date(MIN(created_at)) FROM imported_orders WHERE imported=0) ELSE (SELECT date(MAX(imported_at)) FROM imported_orders WHERE imported=1) END;" 2^>nul') do (
     if not "%%d"=="" set "DATE_SINCE=%%d"
 )
 
