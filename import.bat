@@ -92,6 +92,8 @@ echo 3. Import Orders
 echo.
 echo 4. Full Import (1+2+3)
 echo.
+echo 5. Importer une commande
+echo.
 echo Q. Quit
 echo.
 echo ========================================================================
@@ -103,6 +105,7 @@ if /i "%choice%"=="1" goto STEP_PREPARE
 if /i "%choice%"=="2" goto STEP_IMPORT_CUSTOMERS
 if /i "%choice%"=="3" goto STEP_IMPORT_ORDERS
 if /i "%choice%"=="4" goto FULL_IMPORT
+if /i "%choice%"=="5" goto STEP_IMPORT_SINGLE
 if /i "%choice%"=="Q" goto END
 
 echo Invalid choice. Try again.
@@ -442,6 +445,83 @@ echo ========================================================================
 echo Full import completed.
 echo ========================================================================
 
+pause
+goto MAIN_MENU
+
+
+:: ============================================================================
+:: MENU 5: Import Single Order
+:: ============================================================================
+:STEP_IMPORT_SINGLE
+cls
+echo.
+echo ========================================================================
+echo Importer une commande - Channel: %CHANNEL_NAME% [ID: %CHANNEL_ID%]
+echo ========================================================================
+echo.
+
+call :INIT_DB
+if errorlevel 1 (
+    pause
+    goto MAIN_MENU
+)
+
+set "ORDER_ID="
+set /p ORDER_ID="Enter PIM order ID (or 0 to cancel): "
+if "%ORDER_ID%"=="0" goto MAIN_MENU
+if "%ORDER_ID%"=="" goto MAIN_MENU
+
+:: Check if order already imported
+for /f %%r in ('sqlite3 "%DB_NAME%" "SELECT imported FROM imported_orders WHERE order_id=%ORDER_ID% AND imported=1;" 2^>nul') do (
+    echo.
+    echo WARNING: Order #%ORDER_ID% has already been imported.
+    set /p CONFIRM="Re-import this order? (Y/N): "
+    if /i not "!CONFIRM!"=="Y" goto MAIN_MENU
+)
+
+echo.
+echo --- Trigger CSV Export for order #%ORDER_ID% ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ExportSingleOrder -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -OrderId "%ORDER_ID%" -DbName "%DB_NAME%"
+if errorlevel 1 (
+    echo.
+    echo ABORTED: CSV export failed.
+    pause
+    goto MAIN_MENU
+)
+
+echo.
+echo --- Download from FTP (orders) ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_ORDERS%" -ImportPath "%IMPORT_PATH%"
+
+echo.
+echo --- Download from FTP (customers) ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step FtpDownload -FtpServer "%FTP_SERVER%" -FtpUser "%FTP_USER%" -FtpPass "%FTP_PASS%" -FtpDir "%FTP_DIR_CUSTOMERS%" -ImportPath "%IMPORT_PATH_CUSTOMERS%"
+
+echo.
+echo Press any key to import customers...
+pause >nul
+
+echo.
+echo --- Import Customers ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportCustomers -CustomerImportPath "%IMPORT_PATH_CUSTOMERS%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+
+echo.
+echo Press any key to import order...
+pause >nul
+
+echo.
+echo --- Import Orders ---
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ImportOrders -DbName "%DB_NAME%" -ImportPath "%IMPORT_PATH%" -ChannelId "%CHANNEL_ID%" -FlowExe "%FLOW_EXE%" -Dbn "%DBN%" -Usr "%USR%" -Pwdc "%PWDC%" -Profil "%PROFIL%"
+
+echo.
+echo ========================================================================
+echo Single order import completed.
+echo ========================================================================
 pause
 goto MAIN_MENU
 

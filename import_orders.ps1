@@ -1,12 +1,13 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('SyncNewOrders','TriggerExport','FtpDownload','CleanDuplicates','ImportCustomers','ImportOrders')]
+    [ValidateSet('SyncNewOrders','TriggerExport','ExportSingleOrder','FtpDownload','CleanDuplicates','ImportCustomers','ImportOrders')]
     [string]$Step,
 
     [string]$ApiBase,
     [string]$ChannelId,
     [string]$DateSince,
     [string]$DbName,
+    [string]$OrderId,
     [string]$ImportPath,
     [string]$FtpServer,
     [string]$FtpUser,
@@ -121,6 +122,30 @@ if ($Step -eq 'TriggerExport') {
     Write-Host '========================================================================'
 
     if ($failed -gt 0) { exit 1 } else { exit 0 }
+}
+
+# ---------------------------------------------------------------------------
+# Export single order: insert into DB + trigger CSV export for one order
+# ---------------------------------------------------------------------------
+if ($Step -eq 'ExportSingleOrder') {
+    Write-Host "Exporting single order #$OrderId for channel $ChannelId..."
+
+    # Insert order into DB with imported=0 (ignore if already exists)
+    sqlite3 $DbName "INSERT OR IGNORE INTO imported_orders (order_id, channel_id) VALUES ($OrderId, $ChannelId);"
+
+    # Trigger CSV export
+    $exportUrl = "$ApiBase/export-to-idsystem/$ChannelId/order/$OrderId"
+    Write-Host "URL: $exportUrl"
+    try {
+        curl.exe -s -f $exportUrl | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
+        Write-Host "Export triggered successfully for order #$OrderId."
+    } catch {
+        Write-Host "ERROR: Failed to trigger export: $_"
+        exit 1
+    }
+
+    exit 0
 }
 
 # ---------------------------------------------------------------------------
