@@ -466,23 +466,49 @@ if errorlevel 1 (
     goto MAIN_MENU
 )
 
-set "ORDER_ID="
-set /p ORDER_ID="Enter PIM order ID (or 0 to cancel): "
-if "%ORDER_ID%"=="0" goto MAIN_MENU
-if "%ORDER_ID%"=="" goto MAIN_MENU
+echo 1. Import by PIM order ID
+echo 2. Import by Shopify order number
+echo.
+set /p IMPORT_MODE="Choose (or 0 to cancel): "
+if "%IMPORT_MODE%"=="0" goto MAIN_MENU
+if "%IMPORT_MODE%"=="" goto MAIN_MENU
 
-:: Check if order already imported
-for /f %%r in ('sqlite3 "%DB_NAME%" "SELECT imported FROM imported_orders WHERE order_id=%ORDER_ID% AND imported=1;" 2^>nul') do (
-    echo.
-    echo WARNING: Order #%ORDER_ID% has already been imported.
-    set /p CONFIRM="Re-import this order? (Y/N): "
-    if /i not "!CONFIRM!"=="Y" goto MAIN_MENU
+set "ORDER_ID="
+set "ORDER_NAME="
+
+if "%IMPORT_MODE%"=="1" (
+    set /p ORDER_ID="Enter PIM order ID: "
+    if "!ORDER_ID!"=="" goto MAIN_MENU
+    if "!ORDER_ID!"=="0" goto MAIN_MENU
+
+    :: Check if order already imported
+    for /f %%r in ('sqlite3 "%DB_NAME%" "SELECT imported FROM imported_orders WHERE order_id=!ORDER_ID! AND imported=1;" 2^>nul') do (
+        echo.
+        echo WARNING: Order #!ORDER_ID! has already been imported.
+        set /p CONFIRM="Re-import this order? (Y/N): "
+        if /i not "!CONFIRM!"=="Y" goto MAIN_MENU
+    )
+) else if "%IMPORT_MODE%"=="2" (
+    set /p ORDER_NAME="Enter Shopify order number: "
+    if "!ORDER_NAME!"=="" goto MAIN_MENU
+    if "!ORDER_NAME!"=="0" goto MAIN_MENU
+    set "ORDER_NAME=#!ORDER_NAME!"
+) else (
+    echo Invalid choice.
+    pause
+    goto STEP_IMPORT_SINGLE
 )
 
 echo.
-echo --- Trigger CSV Export for order #%ORDER_ID% ---
-echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ExportSingleOrder -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -OrderId "%ORDER_ID%" -DbName "%DB_NAME%"
+if defined ORDER_ID (
+    echo --- Trigger CSV Export for PIM order #%ORDER_ID% ---
+    echo.
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ExportSingleOrder -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -OrderId "%ORDER_ID%" -DbName "%DB_NAME%"
+) else (
+    echo --- Trigger CSV Export for Shopify order %ORDER_NAME% ---
+    echo.
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Step ExportSingleOrder -ApiBase "%API_BASE%" -ChannelId "%CHANNEL_ID%" -OrderName "%ORDER_NAME%" -DbName "%DB_NAME%"
+)
 if errorlevel 1 (
     echo.
     echo ABORTED: CSV export failed.

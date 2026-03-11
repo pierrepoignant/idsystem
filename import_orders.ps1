@@ -8,6 +8,7 @@ param(
     [string]$DateSince,
     [string]$DbName,
     [string]$OrderId,
+    [string]$OrderName,
     [string]$ImportPath,
     [string]$FtpServer,
     [string]$FtpUser,
@@ -128,18 +129,24 @@ if ($Step -eq 'TriggerExport') {
 # Export single order: insert into DB + trigger CSV export for one order
 # ---------------------------------------------------------------------------
 if ($Step -eq 'ExportSingleOrder') {
-    Write-Host "Exporting single order #$OrderId for channel $ChannelId..."
+    if ($OrderName) {
+        # Export by Shopify order name (e.g. #1234)
+        Write-Host "Exporting order by Shopify name '$OrderName' for channel $ChannelId..."
+        $encodedName = [Uri]::EscapeDataString($OrderName)
+        $exportUrl = "$ApiBase/export-to-idsystem/$ChannelId/order/name/$encodedName"
+    } else {
+        # Export by PIM order ID
+        Write-Host "Exporting single order #$OrderId for channel $ChannelId..."
+        # Insert order into DB with imported=0 (ignore if already exists)
+        sqlite3 $DbName "INSERT OR IGNORE INTO imported_orders (order_id, channel_id) VALUES ($OrderId, $ChannelId);"
+        $exportUrl = "$ApiBase/export-to-idsystem/$ChannelId/order/$OrderId"
+    }
 
-    # Insert order into DB with imported=0 (ignore if already exists)
-    sqlite3 $DbName "INSERT OR IGNORE INTO imported_orders (order_id, channel_id) VALUES ($OrderId, $ChannelId);"
-
-    # Trigger CSV export
-    $exportUrl = "$ApiBase/export-to-idsystem/$ChannelId/order/$OrderId"
     Write-Host "URL: $exportUrl"
     try {
         curl.exe -s -f $exportUrl | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "curl failed (exit code: $LASTEXITCODE)" }
-        Write-Host "Export triggered successfully for order #$OrderId."
+        Write-Host "Export triggered successfully."
     } catch {
         Write-Host "ERROR: Failed to trigger export: $_"
         exit 1
